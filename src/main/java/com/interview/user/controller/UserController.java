@@ -1,11 +1,18 @@
 package com.interview.user.controller;
 
+import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
+import static org.springframework.hateoas.mvc.ControllerLinkBuilder.methodOn;
+
+import java.net.URI;
 import java.util.List;
+
+import javax.validation.Valid;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.hateoas.Resource;
+import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,7 +22,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.interview.user.exception.UserNotFoundException;
 import com.interview.user.service.UserService;
 import com.interview.user.vo.User;
 
@@ -39,16 +48,25 @@ public class UserController {
 		LOGGER.debug("getAll(): Ended.");
 		return users;
 	}
-	
+
 	/**
+	 * input - details of user output - created & Return the created URL
 	 * 
 	 * @param user
+	 * @return
 	 */
+
 	@PostMapping
-	public void registerUser(@RequestBody User user) {
+	public ResponseEntity<Object> registerUser(@Valid @RequestBody User user) {
 		LOGGER.debug("register(): Started.");
 		this.userService.registerUser(user);
 		LOGGER.debug("register(): Ended.");
+		// CREATED
+		// /user/{id} user.getUserId()
+		URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("{id}").buildAndExpand(user.getUsername())
+				.toUri();
+
+		return ResponseEntity.created(location).build();
 	}
 
 	/**
@@ -57,17 +75,23 @@ public class UserController {
 	 * @return
 	 */
 	@GetMapping("/{userId}")
-	public ResponseEntity<User> getUserById(@PathVariable String userId) {
+	public Resource<User> getUserById(@PathVariable String userId) {
 		LOGGER.debug("getUserById(): Started.");
 		User user = this.userService.getUserById(userId);
-		ResponseEntity<User> res = null;
 		if (user == null) {
-			res = new ResponseEntity<>(HttpStatus.NOT_FOUND);
-		} else {
-			res = new ResponseEntity<>(user, HttpStatus.OK);
+			throw new UserNotFoundException("id-" + userId);
 		}
-		LOGGER.debug("getUserById(): Ended.");
-		return res;
+
+		// "all-users", SERVER_PATH + "/users"
+		// getAll
+
+		Resource<User> resource = new Resource<User>(user);
+
+		ControllerLinkBuilder linkto = linkTo(methodOn(this.getClass()).getAll());
+
+		resource.add(linkto.withRel("all-users"));
+
+		return resource;
 	}
 
 	/**
@@ -89,7 +113,15 @@ public class UserController {
 	@DeleteMapping("/{userId}")
 	public void deleteUser(@PathVariable String userId) {
 		LOGGER.debug("deleteUser(): Started.");
-		this.userService.deleteUser(userId);
+		User user = this.userService.getUserById(userId);
+
+		if (user == null) {
+			throw new UserNotFoundException("id-" + userId);
+
+		} else {
+			this.userService.deleteUser(userId);
+		}
+
 		LOGGER.debug("deleteUser(): Ended.");
 	}
 }

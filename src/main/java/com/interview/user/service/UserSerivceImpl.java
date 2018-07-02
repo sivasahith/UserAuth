@@ -16,7 +16,7 @@ public class UserSerivceImpl implements UserService {
 
 	@Override
 	public void registerUser(User user) {
-		userMap.put(user.getUserId(), user);
+		userMap.put(user.getUsername(), user);
 	}
 
 	@Override
